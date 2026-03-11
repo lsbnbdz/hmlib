@@ -121,7 +121,7 @@ export const DEFAULT_THEME: LyricTheme = {
     fontWeight: FontWeight.Medium,
     fontColor: 'rgba(255, 255, 255, 0.85)',
     opacity: 0.9,
-    scale: 1.0
+    scale: 0.85
   },
   highlightStyle: {
     fontSize: 24,
@@ -134,7 +134,7 @@ export const DEFAULT_THEME: LyricTheme = {
       offsetY: 0
     },
     opacity: 1,
-    scale: 1.05
+    scale: 1.0
   },
   translationFontSize: 16,
   transliterationFontSize: 12

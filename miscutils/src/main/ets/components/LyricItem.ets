@@ -51,7 +51,7 @@ export struct LyricItem {
         .fontColor(this.getCurrentStyle().fontColor)
         .textShadow(this.getCurrentStyle().textShadow)
         .opacity(this.getCurrentStyle().opacity ?? 1)
-        .textAlign(TextAlign.Center)
+        .textAlign(TextAlign.Start)
         .animation({
           duration: ANIMATION_DURATION,
           curve: ANIMATION_CURVE
@@ -64,8 +64,8 @@ export struct LyricItem {
           .fontWeight(FontWeight.Medium)
           .fontColor(this.getCurrentStyle().fontColor)
           .opacity((this.getCurrentStyle().opacity ?? 1) * 0.85)
-          .textAlign(TextAlign.Center)
-          .padding({ left: 16, right: 16, top: 2 })
+          .textAlign(TextAlign.Start)
+          .margin({ top: 2 })
           .animation({
             duration: ANIMATION_DURATION,
             curve: ANIMATION_CURVE
@@ -79,24 +79,17 @@ export struct LyricItem {
           .fontWeight(FontWeight.Medium)
           .fontColor(this.getCurrentStyle().fontColor)
           .opacity((this.getCurrentStyle().opacity ?? 1) * 0.85)
-          .textAlign(TextAlign.Center)
-          .padding({ left: 16, right: 16, top: 2 })
+          .textAlign(TextAlign.Start)
+          .margin({ top: 2 })
           .animation({
             duration: ANIMATION_DURATION,
             curve: ANIMATION_CURVE
           })
       }
     }
-    .width('90%')
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
     .padding({ left: 16, right: 16, top: 8, bottom: 8 })
-    .scale({
-      x: this.isCurrentLine() ? (this.getCurrentStyle().scale ?? 1.0) : 1.0,
-      y: this.isCurrentLine() ? (this.getCurrentStyle().scale ?? 1.0) : 1.0
-    })
-    .animation({
-      duration: ANIMATION_DURATION,
-      curve: ANIMATION_CURVE
-    })
     .renderGroup(true)
   }
 

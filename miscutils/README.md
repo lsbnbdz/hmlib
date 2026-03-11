@@ -54,6 +54,7 @@ ohpm install @ospark/misc-utils
 | `lyrics` | LyricLine[] | 是 | `[]` | 歌词数据数组 |
 | `currentIndex` | number | 是 | `0` | 当前高亮索引 |
 | `showTranslation` | boolean | 否 | `false` | 是否显示翻译 |
+| `showBlurMask` | boolean | 否 | `true` | 是否显示模糊遮罩。开启后，非高亮行会有渐变模糊效果，手动滑动时自动隐藏遮罩 |
 | `config` | ChainLyricsConfig | 否 | `DEFAULT_CONFIG` | 组件配置 |
 | `theme` | LyricTheme | 否 | `DEFAULT_THEME` | 主题配置 |
 | `containerHeight` | number | 否 | `0` | 容器高度，不传则自动测量 |
@@ -112,7 +113,9 @@ ohpm install @ospark/misc-utils
 | `fontColor` | ResourceColor | 字体颜色 |
 | `textShadow` | ShadowOptions | 文字阴影 |
 | `opacity` | number | 透明度 (0-1) |
-| `scale` | number | 缩放比例 |
+| `scale` | number | 缩放比例。注意：高亮行固定为 1.0，此值仅对普通行生效 |
+
+> **注意**：缩放逻辑已优化为"当前行保持原始大小，其他行缩小"的模式。`normalStyle.scale` 控制普通行的缩放比例（默认 0.85），`highlightStyle.scale` 保留但不影响显示效果（高亮行始终为 1.0）。
 
 ### LyricEventCallbacks 事件回调
 
@@ -170,7 +173,7 @@ struct LyricsPage {
       fontWeight: FontWeight.Medium,
       fontColor: 'rgba(255, 255, 255, 0.7)',
       opacity: 0.8,
-      scale: 1.0
+      scale: 0.85
     },
     highlightStyle: {
       fontSize: 20,
@@ -183,7 +186,7 @@ struct LyricsPage {
         offsetY: 0
       },
       opacity: 1,
-      scale: 1.1
+      scale: 1.0
     },
     translationFontSize: 16,
     transliterationFontSize: 12
@@ -258,15 +261,17 @@ struct SimplePage {
 
 ```
 ┌─────────────────────────────────┐
-│          普通行 (透明度低)        │  ← lineSpacing 行间距
-│          普通行 (透明度低)        │
+│  普通行 (透明度低、缩小)          │  ← lineSpacing 行间距
+│  普通行 (透明度低、缩小)          │
 │                                 │  ← highlightLineSpacing 额外间距
-│    ★ 高亮行 (放大、高亮、阴影)    │  ← highlightPositionRatio 位置
+│  ★ 高亮行 (原始大小、高亮)        │  ← highlightPositionRatio 位置
 │                                 │  ← highlightLineSpacing 额外间距
-│          普通行 (透明度低)        │
-│          普通行 (透明度低)        │
+│  普通行 (透明度低、缩小)          │
+│  普通行 (透明度低、缩小)          │
 └─────────────────────────────────┘
 ```
+
+> **注意**：歌词采用左对齐布局，缩放时以左侧中心点为基准，确保歌词不会因缩放而产生左右晃动。
 
 ## 链式动画效果说明
 

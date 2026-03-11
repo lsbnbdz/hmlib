@@ -23,6 +23,8 @@ export struct ChainLyricsView {
   @Prop @Watch('onCurrentIndexChange') currentIndex: number = 0
   /** 是否显示翻译 */
   @Prop @Watch('onShowTranslationChange') showTranslation: boolean = false
+  /** 是否显示模糊遮罩（默认显示） */
+  @Prop showBlurMask: boolean = true
   /** 组件配置 */
   @Prop @Watch('onConfigChange') config: ChainLyricsConfig = DEFAULT_CONFIG
   /** 主题配置 */
@@ -605,6 +607,7 @@ export struct ChainLyricsView {
           .margin(16)
       } else {
         Stack() {
+          // 歌词层
           ForEach(this.lyrics, (item: LyricLine, index: number) => {
             Column() {
               LyricItem({
@@ -617,6 +620,12 @@ export struct ChainLyricsView {
             }
             .width('100%')
             .position({ x: 0, y: this.getItemDisplayY(index) })
+            .scale({
+              x: index === this.displayLyricsIndex ? 1.0 : (this.theme.normalStyle.scale ?? 1.0),
+              y: index === this.displayLyricsIndex ? 1.0 : (this.theme.normalStyle.scale ?? 1.0),
+              centerX: 0,
+              centerY: "50%"
+            })
             .animation(this.isManualScroll ? { duration: 0 } : {
               curve: this.getAnimationCurve()
             })
@@ -631,6 +640,48 @@ export struct ChainLyricsView {
               this.updateItemHeight(index, newHeight)
             })
           })
+
+          // 模糊遮罩层（手动滑动时不显示，或用户关闭遮罩时不显示）
+          if (!this.isManualScroll && this.showBlurMask) {
+            // 高亮行高度
+            // 上方遮罩结束位置 = targetY - 高亮行高度/2
+            // 下方遮罩起始位置 = targetY + 高亮行高度/2
+            // 上方渐变模糊遮罩：从顶部到当前行上方
+            Column()
+              .width('100%')
+              .height(Math.max(0, this.getTargetY() - (this.itemHeights[this.displayLyricsIndex] ?? this.getDefaultLineHeight()) / 2))
+              .position({ x: 0, y: 0 })
+              .linearGradientBlur(BlurStyle.COMPONENT_ULTRA_THICK, {
+                fractionStops: [
+                  [1.0, 0.0],
+                  [1.0, 0.7],
+                  [0.0, 1.0]
+                ],
+                direction: GradientDirection.Bottom
+              })
+              .hitTestBehavior(HitTestMode.None)
+              .animation({
+                curve: this.getAnimationCurve()
+              })
+
+            // 下方渐变模糊遮罩：从当前行下方到底部，使用百分比高度
+            Column()
+              .width('100%')
+              .height('100%')
+              .position({ x: 0, y: this.getTargetY() + (this.itemHeights[this.displayLyricsIndex] ?? this.getDefaultLineHeight()) / 2 })
+              .linearGradientBlur(BlurStyle.COMPONENT_ULTRA_THICK, {
+                fractionStops: [
+                  [1.0, 0.0],
+                  [1.0, 0.7],
+                  [0.0, 1.0]
+                ],
+                direction: GradientDirection.Top
+              })
+              .hitTestBehavior(HitTestMode.None)
+              .animation({
+                curve: this.getAnimationCurve()
+              })
+          }
         }
         .width('100%')
         .height('100%')
