@@ -8,6 +8,8 @@ import {
   ChainLyricsConfig,
   SpringAnimationParams,
   DEFAULT_CONFIG,
+  getDefaultSpringParams,
+  getDefaultConfigValues,
   LyricTheme,
   DEFAULT_THEME,
   LyricEventCallbacks
@@ -79,46 +81,65 @@ export struct ChainLyricsView {
   private lastHighlightOffset: number = 0
   /** 内部测量的容器高度（当外部未传入时使用） */
   private measuredContainerHeight: number = 0
+  /** 是否已完成初始化（用于避免初始化时的 watch 回调干扰） */
+  private isInitialized: boolean = false
+  /** 是否有待处理的位置更新（动画期间收到样式/配置变化时标记） */
+  private hasPendingUpdate: boolean = false
 
   // ==================== 生命周期 ====================
   aboutToAppear() {
     this.displayLyricsIndex = this.currentIndex
-    // 合并弹簧参数
-    const defaultParams = DEFAULT_CONFIG.springParams!
+    // 合并弹簧参数（使用默认值函数）
     const customParams = this.config.springParams
+    const defaultSpring = getDefaultSpringParams()
     this.springParams = {
-      velocity: customParams?.velocity ?? defaultParams.velocity,
-      mass: customParams?.mass ?? defaultParams.mass,
-      stiffness: customParams?.stiffness ?? defaultParams.stiffness,
-      damping: customParams?.damping ?? defaultParams.damping,
-      lineSpacing: customParams?.lineSpacing ?? defaultParams.lineSpacing,
-      highlightLineSpacing: customParams?.highlightLineSpacing ?? defaultParams.highlightLineSpacing,
-      dragDelay: customParams?.dragDelay ?? defaultParams.dragDelay
+      velocity: customParams?.velocity ?? defaultSpring.velocity,
+      mass: customParams?.mass ?? defaultSpring.mass,
+      stiffness: customParams?.stiffness ?? defaultSpring.stiffness,
+      damping: customParams?.damping ?? defaultSpring.damping,
+      lineSpacing: customParams?.lineSpacing ?? defaultSpring.lineSpacing,
+      highlightLineSpacing: customParams?.highlightLineSpacing ?? defaultSpring.highlightLineSpacing,
+      dragDelay: customParams?.dragDelay ?? defaultSpring.dragDelay
     }
     if (this.lyrics.length > 0) {
       this.initPositions()
     }
     this.updateCachedAnimationCurve()
+    // 标记初始化完成
+    this.isInitialized = true
   }
 
   /** 监听配置变化 */
   private onConfigChange() {
-    const defaultParams = DEFAULT_CONFIG.springParams!
-    const customParams = this.config.springParams
-    this.springParams = {
-      velocity: customParams?.velocity ?? defaultParams.velocity,
-      mass: customParams?.mass ?? defaultParams.mass,
-      stiffness: customParams?.stiffness ?? defaultParams.stiffness,
-      damping: customParams?.damping ?? defaultParams.damping,
-      lineSpacing: customParams?.lineSpacing ?? defaultParams.lineSpacing,
-      highlightLineSpacing: customParams?.highlightLineSpacing ?? defaultParams.highlightLineSpacing,
-      dragDelay: customParams?.dragDelay ?? defaultParams.dragDelay
-    }
-    this.updateCachedAnimationCurve()
-    // 手动滑动期间不重新计算位置，避免歌词跳动
-    if (this.isManualScroll) {
+    // 初始化阶段跳过，避免与 aboutToAppear 中的初始化逻辑冲突
+    if (!this.isInitialized) {
       return
     }
+
+    // 合并弹簧参数（使用默认值函数）
+    const customParams = this.config.springParams
+    const defaultSpring = getDefaultSpringParams()
+    this.springParams = {
+      velocity: customParams?.velocity ?? defaultSpring.velocity,
+      mass: customParams?.mass ?? defaultSpring.mass,
+      stiffness: customParams?.stiffness ?? defaultSpring.stiffness,
+      damping: customParams?.damping ?? defaultSpring.damping,
+      lineSpacing: customParams?.lineSpacing ?? defaultSpring.lineSpacing,
+      highlightLineSpacing: customParams?.highlightLineSpacing ?? defaultSpring.highlightLineSpacing,
+      dragDelay: customParams?.dragDelay ?? defaultSpring.dragDelay
+    }
+    this.updateCachedAnimationCurve()
+
+    // 手动滑动或自动滚动期间不重新计算位置，标记待处理，等动画结束后再生效
+    if (this.isManualScroll || this.isAutoScroll) {
+      this.hasPendingUpdate = true
+      return
+    }
+
+    // 清除可能残留的动画，重置偏移
+    this.clearAllAnimations()
+    this.itemExtraOffset = new Array(this.lyrics.length).fill(0)
+    this.manualOffset = 0
     // 重新计算位置
     if (this.lyrics.length > 0) {
       this.itemYPositions = this.calculateItemYPositions(this.displayLyricsIndex)
@@ -127,7 +148,25 @@ export struct ChainLyricsView {
 
   /** 监听主题变化 */
   private onThemeChange() {
-    // 主题变化会自动触发 UI 更新
+    // 初始化阶段跳过，避免与 aboutToAppear 中的初始化逻辑冲突
+    if (!this.isInitialized) {
+      return
+    }
+
+    // 手动滑动或自动滚动期间不重新计算位置，标记待处理，等动画结束后再生效
+    if (this.isManualScroll || this.isAutoScroll) {
+      this.hasPendingUpdate = true
+      return
+    }
+
+    // 清除可能残留的动画，重置偏移
+    this.clearAllAnimations()
+    this.itemExtraOffset = new Array(this.lyrics.length).fill(0)
+    this.manualOffset = 0
+    // 重新计算位置
+    if (this.lyrics.length > 0) {
+      this.itemYPositions = this.calculateItemYPositions(this.displayLyricsIndex)
+    }
   }
 
   /** 监听歌词数据变化 */
@@ -195,37 +234,37 @@ export struct ChainLyricsView {
   // ==================== 内部方法 ====================
   /** 获取高亮位置比例 */
   private getHighlightPositionRatio(): number {
-    return this.config.highlightPositionRatio ?? DEFAULT_CONFIG.highlightPositionRatio ?? 0.25
+    return this.config.highlightPositionRatio ?? getDefaultConfigValues().highlightPositionRatio as number
   }
 
   /** 获取链式动画拖拽偏移量 */
   private getDragOffset(): number {
-    return this.config.dragOffset ?? DEFAULT_CONFIG.dragOffset ?? 30
+    return this.config.dragOffset ?? getDefaultConfigValues().dragOffset as number
   }
 
   /** 获取链式动画范围 */
   private getChainAnimationRange(): number {
-    return this.config.chainAnimationRange ?? DEFAULT_CONFIG.chainAnimationRange ?? 20
+    return this.config.chainAnimationRange ?? getDefaultConfigValues().chainAnimationRange as number
   }
 
   /** 获取拖拽持续时间 */
   private getDragHoldDuration(): number {
-    return this.config.dragHoldDuration ?? DEFAULT_CONFIG.dragHoldDuration ?? 35
+    return this.config.dragHoldDuration ?? getDefaultConfigValues().dragHoldDuration as number
   }
 
   /** 获取手动滚动恢复时间 */
   private getManualScrollRecoveryTime(): number {
-    return this.config.manualScrollRecoveryTime ?? DEFAULT_CONFIG.manualScrollRecoveryTime ?? 7000
+    return this.config.manualScrollRecoveryTime ?? getDefaultConfigValues().manualScrollRecoveryTime as number
   }
 
   /** 获取默认行高 */
   private getDefaultLineHeight(): number {
-    return this.config.defaultLineHeight ?? DEFAULT_CONFIG.defaultLineHeight ?? 52
+    return this.config.defaultLineHeight ?? getDefaultConfigValues().defaultLineHeight as number
   }
 
   /** 获取带翻译的行高 */
   private getLineHeightWithTranslation(): number {
-    return this.config.lineHeightWithTranslation ?? DEFAULT_CONFIG.lineHeightWithTranslation ?? 80
+    return this.config.lineHeightWithTranslation ?? getDefaultConfigValues().lineHeightWithTranslation as number
   }
 
   /** 获取高亮位置 Y 坐标 */
@@ -248,18 +287,20 @@ export struct ChainLyricsView {
 
   /** 更新缓存的动画曲线 */
   private updateCachedAnimationCurve() {
+    const defaultSpring = getDefaultSpringParams()
     this.cachedAnimationCurve = curves.springCurve(
-      this.springParams.velocity ?? 0,
-      this.springParams.mass ?? 0.3,
-      this.springParams.stiffness ?? 200,
-      this.springParams.damping ?? 15
+      this.springParams.velocity ?? defaultSpring.velocity,
+      this.springParams.mass ?? defaultSpring.mass,
+      this.springParams.stiffness ?? defaultSpring.stiffness,
+      this.springParams.damping ?? defaultSpring.damping
     )
   }
 
   /** 计算某行的中心 Y 位置（考虑高亮行的额外间距） */
   private getItemCenterY(index: number, highlightIndex: number): number {
-    const lineSpacing = this.springParams.lineSpacing ?? 24
-    const highlightLineSpacing = this.springParams.highlightLineSpacing ?? 8
+    const defaultSpring = getDefaultSpringParams()
+    const lineSpacing = this.springParams.lineSpacing ?? defaultSpring.lineSpacing as number
+    const highlightLineSpacing = this.springParams.highlightLineSpacing ?? defaultSpring.highlightLineSpacing as number
     let y = 0
     for (let i = 0; i < index; i++) {
       y += (this.itemHeights[i] ?? this.getDefaultLineHeight()) + lineSpacing
@@ -443,8 +484,9 @@ export struct ChainLyricsView {
     let completedCount = 0
     const dragHoldDuration = this.getDragHoldDuration()
 
+    const defaultSpring = getDefaultSpringParams()
     for (let i = minAnimIndex; i <= maxAnimIndex; i++) {
-      const delay = (i - minAnimIndex) * (this.springParams.dragDelay ?? 35)
+      const delay = (i - minAnimIndex) * (this.springParams.dragDelay ?? defaultSpring.dragDelay as number)
       const dragOffset = (direction === 1 ? -1 : 1) * this.getDragOffset()
 
       const timeoutId = setTimeout(() => {
@@ -464,6 +506,13 @@ export struct ChainLyricsView {
           completedCount++
           if (completedCount >= totalItems) {
             this.isAutoScroll = false
+            // 检查是否有待处理的位置更新
+            if (this.hasPendingUpdate) {
+              this.hasPendingUpdate = false
+              this.itemExtraOffset = new Array(this.lyrics.length).fill(0)
+              this.manualOffset = 0
+              this.itemYPositions = this.calculateItemYPositions(this.displayLyricsIndex)
+            }
           }
         }, dragHoldDuration) as number
 
@@ -639,7 +688,7 @@ export struct ChainLyricsView {
               const newHeight = newValue.height as number
               this.updateItemHeight(index, newHeight)
             })
-          })
+          }, (item: LyricLine, index: number) => `${item.time}_${index}`)
 
           // 模糊遮罩层（手动滑动时不显示，或用户关闭遮罩时不显示）
           if (!this.isManualScroll && this.showBlurMask) {

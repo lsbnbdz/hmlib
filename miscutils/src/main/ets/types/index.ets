@@ -91,6 +91,36 @@ export interface LyricTheme {
 }
 
 /**
+ * 弹簧动画参数默认值
+ */
+export function getDefaultSpringParams(): SpringAnimationParams {
+  return {
+    velocity: 0,
+    mass: 0.3,
+    stiffness: 200,
+    damping: 15,
+    lineSpacing: 24,
+    highlightLineSpacing: 8,
+    dragDelay: 35
+  }
+}
+
+/**
+ * 配置默认值
+ */
+export function getDefaultConfigValues(): ChainLyricsConfig {
+  return {
+    highlightPositionRatio: 0.25,
+    dragOffset: 30,
+    chainAnimationRange:  20,
+    dragHoldDuration: 35,
+    manualScrollRecoveryTime: 7000,
+    defaultLineHeight: 52,
+    lineHeightWithTranslation: 80
+  }
+}
+
+/**
  * 默认配置
  */
 export const DEFAULT_CONFIG: ChainLyricsConfig = {

@@ -1,9 +1,10 @@
 {
   "name": "@ospark/misc-utils",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A Disorganized Tools Repository.",
   "main": "Index.ets",
   "author": "lsbnbdz",
+  "repository": "https://github.com/lsbnbdz/hmlib/",
   "license": "Apache-2.0",
   "dependencies": {}
 }

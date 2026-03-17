@@ -5,6 +5,18 @@
 本文件格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.0.1] - 2026-03-17
+
+### 优化
+
+- **样式/配置变化时的动画处理**
+  - 新增初始化标志 `isInitialized`，避免组件初始化时 `@Watch` 回调干扰
+  - 新增待处理更新标志 `hasPendingUpdate`，支持动画期间样式变化的延迟生效
+  - 配置变化（`config`）时：如果正在滚动，标记待处理，等动画结束后自动应用
+  - 主题变化（`theme`）时：如果正在滚动，标记待处理，等动画结束后自动应用
+  - 解决了调整字体大小等样式参数时歌词行重叠的问题
+  - 统一使用 `getDefaultSpringParams()` 和 `getDefaultConfigValues()` 函数获取默认值
+
 ## [1.0.0] - 2026-03-10
 
 ### 新增
