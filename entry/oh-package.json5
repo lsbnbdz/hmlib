@@ -1,10 +1,12 @@
 {
   "name": "entry",
-  "version": "1.0.0",
-  "description": "Please describe the basic information.",
-  "main": "",
-  "author": "",
-  "license": "",
-  "dependencies": {}
+  "version": "1.0.1",
+  "description": "HarmonyOS Tools Box.",
+  "main": "Index.ets",
+  "author": "lsbnbdz",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@ospark/misc-utils": "file:../miscutils"
+  }
 }
 

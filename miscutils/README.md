@@ -257,6 +257,28 @@ struct SimplePage {
 
 > **注意**：最简使用模式下，点击歌词行**不会触发跳转**。如需点击跳转功能，请添加 `onLineClick` 回调。
 
+## 示例组件
+
+库内提供了 `ChainLyricsExample` 示例组件，可直接使用：
+
+```typescript
+import { ChainLyricsExample } from '@ospark/misc-utils'
+
+@Entry
+@Component
+struct Index {
+  build() {
+    ChainLyricsExample()
+  }
+}
+```
+
+示例组件功能：
+- 包含约20行示例歌词
+- 使用定时器模拟歌词滚动（不实际播放音乐）
+- 支持播放/暂停控制
+- 支持点击歌词行跳转
+
 ## 视觉效果示意
 
 ```
