@@ -14,6 +14,20 @@ export interface LyricLine {
   translation?: string
   /** 音译（可选） */
   transliteration?: string
+  /** 逐字数据（可选，支持逐字歌词） */
+  words?: LyricWord[]
+}
+
+/**
+ * 逐字数据
+ */
+export interface LyricWord {
+  /** 字文本 */
+  word: string
+  /** 开始时间（相对于行起始，毫秒） */
+  startTime: number
+  /** 结束时间（相对于行起始，毫秒） */
+  endTime: number
 }
 
 /**
@@ -56,6 +70,8 @@ export interface ChainLyricsConfig {
   defaultLineHeight?: number
   /** 带翻译的行高 */
   lineHeightWithTranslation?: number
+  /** 是否启用逐字歌词 */
+  enableWordByWord?: boolean
 }
 
 /**
@@ -88,6 +104,8 @@ export interface LyricTheme {
   translationFontSize?: number
   /** 罗马音字体大小 */
   transliterationFontSize?: number
+  /** 已唱部分的字体颜色（逐字模式） */
+  sungFontColor?: ResourceColor
 }
 
 /**
@@ -167,7 +185,8 @@ export const DEFAULT_THEME: LyricTheme = {
     scale: 1.0
   },
   translationFontSize: 16,
-  transliterationFontSize: 12
+  transliterationFontSize: 12,
+  sungFontColor: '#FFD700'
 }
 
 /**

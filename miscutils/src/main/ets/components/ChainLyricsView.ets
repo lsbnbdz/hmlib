@@ -1,6 +1,7 @@
 /**
  * 链式歌词组件
  * 支持链式动画、弹簧动画、手动拖拽、惯性滑动
+ * 支持逐字歌词效果
  */
 import { curves } from '@kit.ArkUI';
 import {
@@ -15,6 +16,9 @@ import {
   LyricEventCallbacks
 } from '../types';
 import { LyricItem } from './LyricItem';
+
+/** 逐字计时器间隔（毫秒） */
+const WORD_TIMER_INTERVAL = 8;
 
 @Component
 export struct ChainLyricsView {
@@ -37,6 +41,8 @@ export struct ChainLyricsView {
   @Prop containerHeight: number = 0
   /** 重置信号（外部改变此值时触发重置到当前行） */
   @Prop @Watch('onResetSignalChange') resetSignal: number = 0
+  /** 是否正在播放 */
+  @Prop @Watch('onPlayStateChange') isPlaying: boolean = false
 
   // ==================== 内部状态 ====================
   /** 手动滑动偏移 */
@@ -62,6 +68,9 @@ export struct ChainLyricsView {
   /** 弹簧动画参数 */
   @State private springParams: SpringAnimationParams = DEFAULT_CONFIG.springParams!
 
+  /** 当前行已播放时长（毫秒） */
+  @State private currentLineElapsed: number = 0
+
   // ==================== 私有变量 ====================
   /** 动画 timeout 列表 */
   private animationTimeouts: number[] = []
@@ -85,6 +94,10 @@ export struct ChainLyricsView {
   private isInitialized: boolean = false
   /** 是否有待处理的位置更新（动画期间收到样式/配置变化时标记） */
   private hasPendingUpdate: boolean = false
+  /** 逐字计时器 ID */
+  private wordTimerId: number = -1
+  /** 上次 tick 时间 */
+  private lastTickTime: number = 0
 
   // ==================== 生命周期 ====================
   aboutToAppear() {
@@ -179,6 +192,8 @@ export struct ChainLyricsView {
       this.manualOffset = 0
       this.prevLyricsIndex = -1
       this.prevHighlightIndex = -1
+      // 重置逐字进度
+      this.resetWordProgress()
       this.clearAllAnimations()
       this.clearInertiaAnimation()
       this.initPositions()
@@ -214,6 +229,67 @@ export struct ChainLyricsView {
   aboutToDisappear() {
     this.clearAllAnimations()
     this.clearInertiaAnimation()
+    this.stopWordTimer()
+  }
+
+  // ==================== 逐字计时器 ====================
+  /** 播放状态变化 */
+  private onPlayStateChange() {
+    if (this.isPlaying) {
+      this.startWordTimer()
+    } else {
+      this.stopWordTimer()
+    }
+  }
+
+  /** 启动逐字计时器 */
+  private startWordTimer() {
+    if (this.wordTimerId !== -1) {
+      return
+    }
+    this.lastTickTime = Date.now()
+    this.tickWordProgress()
+  }
+
+  /** 逐字计时 tick */
+  private tickWordProgress() {
+    // 立即执行一次
+    this.doTick()
+
+    // 然后设置定时器
+    this.wordTimerId = setInterval(() => {
+      this.doTick()
+    }, WORD_TIMER_INTERVAL) as number
+  }
+
+  /** 执行一次 tick */
+  private doTick() {
+    if (!this.isPlaying) {
+      return
+    }
+    const now = Date.now()
+    const delta = now - this.lastTickTime
+    this.lastTickTime = now
+    this.currentLineElapsed += delta
+  }
+
+  /** 停止逐字计时器 */
+  private stopWordTimer() {
+    if (this.wordTimerId !== -1) {
+      clearInterval(this.wordTimerId)
+      this.wordTimerId = -1
+    }
+  }
+
+  /** 重置逐字进度 */
+  private resetWordProgress() {
+    this.currentLineElapsed = 0
+    this.lastTickTime = Date.now()
+  }
+
+  /** 获取是否启用逐字模式 */
+  private isEnableWordByWord(): boolean {
+    return this.config.enableWordByWord ?? false
   }
 
   // ==================== 公共方法 ====================
@@ -228,6 +304,8 @@ export struct ChainLyricsView {
     this.clearInertiaAnimation()
     this.isManualScroll = false
     this.displayLyricsIndex = this.currentIndex
+    // 重置逐字进度
+    this.resetWordProgress()
     this.updatePositionsForIndex(this.currentIndex)
   }
 
@@ -403,6 +481,9 @@ export struct ChainLyricsView {
 
   /** 监听外部索引变化 */
   private onCurrentIndexChange() {
+    // 逐字进度始终跟随播放行变化重置（无论是否手动滚动）
+    this.resetWordProgress()
+
     if (this.currentIndex !== -1 && !this.isManualScroll) {
       // 记录之前的高亮行（用于判断 scale 变化导致的高度变化）
       this.prevHighlightIndex = this.displayLyricsIndex
@@ -625,6 +706,8 @@ export struct ChainLyricsView {
         this.eventCallbacks.onManualScrollEnd()
       }
       this.displayLyricsIndex = this.currentIndex
+      // 重置逐字进度
+      this.resetWordProgress()
       // 直接更新位置（无动画）
       this.updatePositionsForIndex(this.currentIndex)
     }, recoveryTime) as number
@@ -639,6 +722,8 @@ export struct ChainLyricsView {
 
     this.prevLyricsIndex = this.displayLyricsIndex
     this.displayLyricsIndex = index
+    // 重置逐字进度
+    this.resetWordProgress()
     this.updatePositionsForIndex(index)
 
     if (this.eventCallbacks.onLineClick) {
@@ -664,7 +749,10 @@ export struct ChainLyricsView {
                 index: index,
                 showTranslation: this.showTranslation,
                 currentLyricsIndex: this.displayLyricsIndex,
-                theme: this.theme
+                playingIndex: this.currentIndex,
+                theme: this.theme,
+                enableWordByWord: this.isEnableWordByWord(),
+                currentLineElapsed: this.currentLineElapsed
               })
             }
             .width('100%')
@@ -742,9 +830,13 @@ export struct ChainLyricsView {
     .onAreaChange((_oldValue: Area, newValue: Area) => {
       // 只有当外部未传入 containerHeight 时，才使用内部测量值
       if (this.containerHeight <= 0) {
-        this.measuredContainerHeight = newValue.height as number
-        if (this.lyrics.length > 0 && this.itemYPositions.length === 0) {
-          this.initPositions()
+        const newHeight = newValue.height as number
+        // 当测量到有效高度，且与之前不同时，重新计算位置
+        if (newHeight > 0 && newHeight !== this.measuredContainerHeight) {
+          this.measuredContainerHeight = newHeight
+          if (this.lyrics.length > 0) {
+            this.initPositions()
+          }
         }
       }
     })

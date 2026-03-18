@@ -1,13 +1,12 @@
 # @ospark/misc-utils
 
-链式歌词组件库，支持链式动画、弹簧动画、手动拖拽、惯性滑动。
-
-> **声明**：本组件只支持逐行歌词，不支持逐字歌词。
+链式歌词组件库，支持链式动画、弹簧动画、手动拖拽、惯性滑动、逐字歌词效果。
 
 ## 特性
 
 - **开箱即用**：只需传入歌词数组和当前索引即可使用
 - **链式动画**：歌词切换时产生依次拖拽的视觉效果
+- **逐字歌词**：支持逐字填充效果，已唱部分和未唱部分颜色不同
 - **智能动画跳过**：当前歌词行持续时间太短时自动跳过动画
 - **弹簧动画**：使用物理弹簧曲线，自然流畅
 - **手动拖拽**：支持手指拖动查看歌词
@@ -53,6 +52,7 @@ ohpm install @ospark/misc-utils
 |------|------|------|--------|------|
 | `lyrics` | LyricLine[] | 是 | `[]` | 歌词数据数组 |
 | `currentIndex` | number | 是 | `0` | 当前高亮索引 |
+| `isPlaying` | boolean | 否 | `false` | 是否正在播放（用于逐字歌词计时） |
 | `showTranslation` | boolean | 否 | `false` | 是否显示翻译 |
 | `showBlurMask` | boolean | 否 | `true` | 是否显示模糊遮罩。开启后，非高亮行会有渐变模糊效果，手动滑动时自动隐藏遮罩 |
 | `config` | ChainLyricsConfig | 否 | `DEFAULT_CONFIG` | 组件配置 |
@@ -69,6 +69,15 @@ ohpm install @ospark/misc-utils
 | `time` | number | 是 | 时间戳（毫秒） |
 | `translation` | string | 否 | 翻译 |
 | `transliteration` | string | 否 | 音译 |
+| `words` | LyricWord[] | 否 | 逐字数据（支持逐字歌词） |
+
+### LyricWord 逐字数据
+
+| 属性 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `word` | string | 是 | 字文本 |
+| `startTime` | number | 是 | 开始时间（相对于行起始，毫秒） |
+| `endTime` | number | 是 | 结束时间（相对于行起始，毫秒） |
 
 ### ChainLyricsConfig 组件配置
 
@@ -81,6 +90,7 @@ ohpm install @ospark/misc-utils
 | `manualScrollRecoveryTime` | number | 7000 | 用户手动滑动后自动恢复的时间 (ms) |
 | `defaultLineHeight` | number | 12 | 普通歌词行的预估高度 (vp) |
 | `lineHeightWithTranslation` | number | 80 | 带翻译/罗马音的歌词行的预估高度 (vp) |
+| `enableWordByWord` | boolean | false | 是否启用逐字歌词效果 |
 | `springParams` | SpringAnimationParams | - | 弹簧动画参数 |
 
 ### SpringAnimationParams 弹簧动画参数
@@ -103,6 +113,7 @@ ohpm install @ospark/misc-utils
 | `highlightStyle` | LyricItemStyle | 是 | 高亮行样式 |
 | `translationFontSize` | number | 否 | 翻译字体大小 (vp)，默认 16 |
 | `transliterationFontSize` | number | 否 | 罗马音字体大小 (vp)，默认 12 |
+| `sungFontColor` | ResourceColor | 否 | 已唱部分的字体颜色（逐字模式），默认 `#FFD700` |
 
 ### LyricItemStyle 歌词行样式
 
@@ -257,9 +268,77 @@ struct SimplePage {
 
 > **注意**：最简使用模式下，点击歌词行**不会触发跳转**。如需点击跳转功能，请添加 `onLineClick` 回调。
 
+## 逐字歌词使用
+
+逐字歌词需要：
+1. 在 `LyricLine` 中添加 `words` 字段
+2. 设置 `isPlaying` 控制逐字计时
+3. 设置 `config.enableWordByWord = true` 启用逐字模式
+
+```typescript
+import { ChainLyricsView, LyricLine, LyricWord, DEFAULT_THEME } from '@ospark/misc-utils'
+
+@Entry
+@Component
+struct WordByWordPage {
+  @State lyrics: LyricLine[] = [
+    {
+      text: '夜空中最亮的星',
+      time: 0,
+      words: [
+        { word: '夜', startTime: 0, endTime: 500 },
+        { word: '空', startTime: 500, endTime: 1000 },
+        { word: '中', startTime: 1000, endTime: 1500 },
+        { word: '最', startTime: 1500, endTime: 2000 },
+        { word: '亮', startTime: 2000, endTime: 2500 },
+        { word: '的', startTime: 2500, endTime: 3000 },
+        { word: '星', startTime: 3000, endTime: 4000 }
+      ]
+    },
+    {
+      text: '能否听清',
+      time: 4000,
+      words: [
+        { word: '能', startTime: 0, endTime: 600 },
+        { word: '否', startTime: 600, endTime: 1200 },
+        { word: '听', startTime: 1200, endTime: 1400 },
+        { word: '清', startTime: 1400, endTime: 1600 }
+      ]
+    }
+  ]
+  @State currentIndex: number = 0
+  @State isPlaying: boolean = false
+
+  build() {
+    Column() {
+      ChainLyricsView({
+        lyrics: this.lyrics,
+        currentIndex: this.currentIndex,
+        isPlaying: this.isPlaying,
+        config: {
+          enableWordByWord: true
+        },
+        theme: {
+          normalStyle: DEFAULT_THEME.normalStyle,
+          highlightStyle: DEFAULT_THEME.highlightStyle,
+          sungFontColor: '#FFD700'  // 已唱部分颜色
+        }
+      })
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor('#1a1a2e')
+  }
+}
+```
+
+> **注意**：`words` 中的 `startTime` 和 `endTime` 是相对于每行起始的时间，不是绝对时间。逐字效果仅作用于当前播放行（`currentIndex`），手动滑动查看其他行时不会显示逐字效果。
+
 ## 示例组件
 
-库内提供了 `ChainLyricsExample` 示例组件，可直接使用：
+库内提供了 `ChainLyricsExample` 和 `WordByWordLyricsExample` 示例组件，可直接使用：
+
+### 普通歌词示例
 
 ```typescript
 import { ChainLyricsExample } from '@ospark/misc-utils'
@@ -278,6 +357,28 @@ struct Index {
 - 使用定时器模拟歌词滚动（不实际播放音乐）
 - 支持播放/暂停控制
 - 支持点击歌词行跳转
+
+### 逐字歌词示例
+
+```typescript
+import { WordByWordLyricsExample } from '@ospark/misc-utils'
+
+@Entry
+@Component
+struct Index {
+  build() {
+    WordByWordLyricsExample()
+  }
+}
+```
+
+示例组件功能：
+- 包含约20行带逐字信息的示例歌词
+- 演示链式动画 + 逐字填充效果
+- 支持长句（占2+行）和短句
+- 包含快慢节奏变化，有连续快速字和慢速字
+- 使用定时器模拟歌词滚动
+- 支持播放/暂停控制
 
 ## 视觉效果示意
 

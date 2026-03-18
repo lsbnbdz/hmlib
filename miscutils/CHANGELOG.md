@@ -5,6 +5,31 @@
 本文件格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.0.2] - 2026-03-18
+
+### 新增
+
+- **逐字歌词功能**
+  - 新增 `LyricWord` 接口，支持逐字数据（`word`、`startTime`、`endTime`）
+  - `LyricLine` 新增 `words` 可选字段，支持逐字歌词数据
+  - 新增 `WordItem` 组件，实现逐字颜色填充效果
+  - `ChainLyricsView` 新增 `isPlaying` 属性，控制逐字计时
+  - `ChainLyricsConfig` 新增 `enableWordByWord` 配置，开启逐字模式
+  - `LyricTheme` 新增 `sungFontColor` 配置，设置已唱部分颜色
+
+- **逐字歌词示例组件**
+  - 新增 `WordByWordLyricsExample` 示例组件
+  - 包含约20行带逐字信息的示例歌词
+  - 支持长句（占2+行）和短句
+  - 包含快慢节奏变化，有连续快速字和慢速字
+  - 可通过 `import { WordByWordLyricsExample } from '@ospark/misc-utils'` 使用
+
+### 修复
+
+- **Tabs 中初始化位置问题**
+  - 修复在 Tabs 组件中，非首个 TabContent 的歌词组件初始化时位置不正确的问题
+  - 当 `onAreaChange` 测量到有效高度变化时，重新计算歌词位置
+
 ## [1.0.1] - 2026-03-17
 
 ### 新增

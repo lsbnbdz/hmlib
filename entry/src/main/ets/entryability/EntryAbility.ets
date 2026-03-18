@@ -22,6 +22,23 @@ export default class EntryAbility extends UIAbility {
     // Main window is created, set main page for this ability
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
 
+    // 获取主窗口并设置全屏沉浸式
+    const mainWindow = windowStage.getMainWindowSync()
+
+    // 获取状态栏高度（同步方法）
+    const avoidArea = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM)
+    const statusBarHeight = avoidArea.topRect.height as number
+    // 保存到 AppStorage 供页面使用
+    AppStorage.setOrCreate('statusBarHeight', statusBarHeight)
+    hilog.info(DOMAIN, 'testTag', 'Status bar height: %{public}d', statusBarHeight)
+
+    // 设置全屏模式（内容延伸到状态栏区域）
+    mainWindow.setWindowLayoutFullScreen(true).then(() => {
+      hilog.info(DOMAIN, 'testTag', 'Succeeded in setting full screen mode.');
+    }).catch((err: Error) => {
+      hilog.error(DOMAIN, 'testTag', 'Failed to set full screen mode. Cause: %{public}s', err.message);
+    })
+
     windowStage.loadContent('pages/Index', (err) => {
       if (err.code) {
         hilog.error(DOMAIN, 'testTag', 'Failed to load the content. Cause: %{public}s', JSON.stringify(err));
