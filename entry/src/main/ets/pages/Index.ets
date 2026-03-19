@@ -1,4 +1,6 @@
-import { ChainLyricsExample, WordByWordLyricsExample } from '@ospark/misc-utils'
+import {
+  ChainLyricsExample,
+  ChainLyricsExampleV2, WordByWordLyricsExample, WordByWordLyricsExampleV2 } from '@ospark/misc-utils'
 
 @Entry
 @Component
@@ -17,12 +19,22 @@ struct Index {
         TabContent() {
           WordByWordLyricsExample()
         }
-        .tabBar('逐字歌词')
+        .tabBar('逐字')
 
         TabContent() {
           ChainLyricsExample()
         }
-        .tabBar('普通歌词')
+        .tabBar('普通')
+
+        TabContent() {
+          WordByWordLyricsExampleV2()
+        }
+        .tabBar('逐字V2')
+
+        TabContent() {
+          ChainLyricsExampleV2()
+        }
+        .tabBar('普通V2')
       }
       .width('100%')
       .layoutWeight(1)

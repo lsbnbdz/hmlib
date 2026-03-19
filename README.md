@@ -10,6 +10,7 @@
 
 **当前组件：**
 - `ChainLyricsView` - 链式歌词组件，支持链式动画、逐字动画、弹簧动画、手动拖拽、惯性滑动
+- `ChainLyricsViewV2` - V2版本链式歌词组件，支持链式动画、逐字动画、弹簧动画、手动拖拽、惯性滑动
 
 详见 [miscutils/README.md](./miscutils/README.md)。
 

@@ -5,6 +5,29 @@
 本文件格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.0.3] - 2026-03-19
+
+### 新增
+
+- **V2 版本组件（基于状态管理V2）**
+  - 新增 `ChainLyricsViewV2` 组件，使用 `@ComponentV2` 和 `@Local`/`@Param` 装饰器
+  - 新增 `LyricItemV2` 组件，使用 `@ComponentV2` 和 `@Computed` 计算属性
+  - 新增 `WordItemV2` 组件，使用 `@ReusableV2` 支持组件复用
+  - 所有类型定义新增 V2 版本（使用 `@ObservedV2` 和 `@Trace` 装饰器）
+    - `LyricLineV2`、`LyricWordV2`、`ChainLyricsConfigV2`、`LyricThemeV2` 等
+    - 提供 `DEFAULT_CONFIG_V2`、`DEFAULT_THEME_V2` 默认配置
+  - V2 版本支持深度观测嵌套对象属性变化
+
+- **V2 示例组件**
+  - 新增 `ChainLyricsExampleV2` 示例组件
+  - 新增 `WordByWordLyricsExampleV2` 逐字歌词示例组件
+  - 使用 `@ComponentV2` 和 `@Local` 状态管理
+
+### 变更
+
+- V1 和 V2 版本共存，可根据项目需求选择使用
+- V2 版本导出命名带 `V2` 后缀（如 `ChainLyricsViewV2`、`LyricLineV2`）
+
 ## [1.0.2] - 2026-03-18
 
 ### 新增

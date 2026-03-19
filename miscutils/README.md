@@ -13,6 +13,7 @@
 - **惯性滑动**：拖动结束后有惯性效果
 - **自动恢复**：手动滚动后自动回到当前播放位置
 - **翻译支持**：支持显示翻译和音译
+- **V2 状态管理**：提供基于 `@ComponentV2` 的 V2 版本组件，支持深度观测嵌套对象
 
 ## 安装
 
@@ -379,6 +380,97 @@ struct Index {
 - 包含快慢节奏变化，有连续快速字和慢速字
 - 使用定时器模拟歌词滚动
 - 支持播放/暂停控制
+
+## V2 版本组件（状态管理V2）
+
+从 v1.0.3 开始，库提供了基于状态管理 V2 的组件版本，使用 `@ComponentV2`、`@Local`、`@Param`、`@ObservedV2` 等 V2 装饰器。
+
+### V2 组件列表
+
+| V1 组件 | V2 组件 | 说明 |
+|---------|---------|------|
+| `ChainLyricsView` | `ChainLyricsViewV2` | 主组件 |
+| `LyricItem` | `LyricItemV2` | 歌词行组件 |
+| `WordItem` | `WordItemV2` | 逐字组件 |
+| `ChainLyricsExample` | `ChainLyricsExampleV2` | 示例组件 |
+| `WordByWordLyricsExample` | `WordByWordLyricsExampleV2` | 逐字示例组件 |
+
+### V2 类型导出
+
+V2 版本类型使用 `@ObservedV2` 和 `@Trace` 装饰器，支持深度观测嵌套对象属性变化：
+
+```typescript
+// V2 类型导出（带 V2 后缀）
+import {
+  LyricLineV2,
+  LyricWordV2,
+  ChainLyricsConfigV2,
+  LyricThemeV2,
+  DEFAULT_CONFIG_V2,
+  DEFAULT_THEME_V2
+} from '@ospark/misc-utils'
+```
+
+### V2 版本使用示例
+
+```typescript
+import { ChainLyricsViewV2, LyricLineV2, DEFAULT_THEME_V2 } from '@ospark/misc-utils'
+
+@Entry
+@ComponentV2
+struct LyricsPageV2 {
+  @Local lyrics: LyricLineV2[] = []
+  @Local currentIndex: number = 0
+
+  aboutToAppear(): void {
+    // 使用 new 创建实例
+    const line = new LyricLineV2()
+    line.text = '夜空中最亮的星'
+    line.time = 0
+    this.lyrics.push(line)
+  }
+
+  build() {
+    Column() {
+      ChainLyricsViewV2({
+        lyrics: this.lyrics,
+        currentIndex: this.currentIndex,
+        theme: DEFAULT_THEME_V2
+      })
+    }
+  }
+}
+```
+
+### V2 示例组件
+
+```typescript
+import { ChainLyricsExampleV2, WordByWordLyricsExampleV2 } from '@ospark/misc-utils'
+
+@Entry
+@ComponentV2
+struct Index {
+  build() {
+    ChainLyricsExampleV2()
+    // 或
+    WordByWordLyricsExampleV2()
+  }
+}
+```
+
+### V1 与 V2 区别
+
+| 特性 | V1 版本 | V2 版本 |
+|------|---------|---------|
+| 组件装饰器 | `@Component` | `@ComponentV2` |
+| 内部状态 | `@State` | `@Local` |
+| 外部输入 | `@Prop` | `@Param` |
+| 变化监听 | `@Watch` | `@Monitor` |
+| 类型定义 | `interface` | `@ObservedV2 class` |
+| 深度观测 | 需配合 `@ObjectLink` | 原生支持 `@Trace` |
+| 计算属性 | 无 | `@Computed` |
+
+> **建议**：新项目推荐使用 V2 版本，可获得更好的性能和更简洁的代码。V1 版本继续维护，现有项目可按需迁移。
 
 ## 视觉效果示意
 
