@@ -20,6 +20,17 @@ import { LyricItemV2 } from './LyricItemV2';
 /** 逐字计时器间隔（毫秒） */
 const WORD_TIMER_INTERVAL = 8;
 
+/** 生成歌词行的唯一 key（前2字+后2字+索引） */
+const generateLyricKey = (text: string, index: number): string => {
+  const len = text.length;
+  if (len <= 4) {
+    return `${text}_${index}`;
+  }
+  const prefix = text.slice(0, 2);
+  const suffix = text.slice(-2);
+  return `${prefix}${suffix}_${index}`;
+};
+
 @ComponentV2
 export struct ChainLyricsViewV2 {
   // ==================== 输入属性 ====================
@@ -671,7 +682,7 @@ export struct ChainLyricsViewV2 {
               const newHeight = newValue.height as number
               this.updateItemHeight(index, newHeight)
             })
-          }, (item: LyricLine, index: number) => `${item.time}_${index}`)
+          }, (item: LyricLine, index: number) => generateLyricKey(item.text, index))
 
           // 模糊遮罩层
           if (!this.isManualScroll && this.showBlurMask) {

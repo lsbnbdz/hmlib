@@ -12,3 +12,6 @@
 /.appanalyzer
 **/.claude
 CLAUDE.md
+.roo/
+entry/oh-package-lock.json5
+package-lock.json
