@@ -16,20 +16,15 @@ import {
   createDefaultConfig
 } from '../types/indexV2';
 import { LyricItemV2 } from './LyricItemV2';
+import {
+  generateLyricKey,
+  calculateLyricsItemYPositions,
+  calculateManualOffsetLimits,
+  findNearestHighlightIndex
+} from '../utils/LyricsCalcUtils';
 
 /** 逐字计时器间隔（毫秒） */
 const WORD_TIMER_INTERVAL = 8;
-
-/** 生成歌词行的唯一 key（前2字+后2字+索引） */
-const generateLyricKey = (text: string, index: number): string => {
-  const len = text.length;
-  if (len <= 4) {
-    return `${text}_${index}`;
-  }
-  const prefix = text.slice(0, 2);
-  const suffix = text.slice(-2);
-  return `${prefix}${suffix}_${index}`;
-};
 
 @ComponentV2
 export struct ChainLyricsViewV2 {
@@ -106,6 +101,8 @@ export struct ChainLyricsViewV2 {
   private wordTimerId: number = -1
   /** 上次 tick 时间 */
   private lastTickTime: number = 0
+  /** 是否已安排高度变化后的位置重算（同一批 onAreaChange 去抖） */
+  private heightRecalcScheduled: boolean = false
 
   // ==================== 生命周期 ====================
   aboutToAppear(): void {
@@ -344,53 +341,30 @@ export struct ChainLyricsViewV2 {
     )
   }
 
-  private getItemCenterY(index: number, highlightIndex: number): number {
-    const lineSpacing = this.config.springParams.lineSpacing
-    const highlightLineSpacing = this.config.springParams.highlightLineSpacing
-    let y = 0
-    for (let i = 0; i < index; i++) {
-      y += (this.itemHeights[i] ?? this.getDefaultLineHeight()) + lineSpacing
-      if (i + 1 === highlightIndex) {
-        y += highlightLineSpacing
-      }
-      if (i === highlightIndex) {
-        y += highlightLineSpacing
-      }
-    }
-    const currentHeight = this.itemHeights[index] ?? this.getDefaultLineHeight()
-    return y + currentHeight / 2
-  }
-
   private getItemDisplayY(index: number): number {
     const centerY = (this.itemYPositions[index] ?? 0) + this.manualOffset + (this.itemExtraOffset[index] ?? 0)
     const height = this.itemHeights[index] ?? this.getDefaultLineHeight()
     return centerY - height / 2
   }
 
+  /** 计算目标行居中时每行的位置（公共工具，O(n)） */
   private calculateItemYPositions(targetIndex: number): number[] {
-    const positions: number[] = []
-    const highlightCenterY = this.getItemCenterY(targetIndex, targetIndex)
-
-    for (let i = 0; i < this.lyrics.length; i++) {
-      const itemCenterY = this.getItemCenterY(i, targetIndex)
-      positions[i] = this.getTargetY() + (itemCenterY - highlightCenterY)
-    }
-    return positions
+    return calculateLyricsItemYPositions(
+      this.itemHeights,
+      targetIndex,
+      this.getTargetY(),
+      this.config.springParams.lineSpacing,
+      this.config.springParams.highlightLineSpacing,
+      this.getDefaultLineHeight()
+    )
   }
 
   private getClampedManualOffset(offset: number): number {
-    if (this.lyrics.length === 0) return 0
-
-    const firstY = this.itemYPositions[0] ?? 0
-    const lastY = this.itemYPositions[this.lyrics.length - 1] ?? 0
-
-    const pullDownLimit = this.getTargetY() - firstY
-    const pushUpLimit = this.getTargetY() - lastY
-
-    const lower = Math.min(pullDownLimit, pushUpLimit)
-    const upper = Math.max(pullDownLimit, pushUpLimit)
-
-    return Math.max(lower, Math.min(upper, offset))
+    const limits = calculateManualOffsetLimits(this.itemYPositions, this.getTargetY())
+    if (limits === null) {
+      return 0
+    }
+    return Math.max(limits[0], Math.min(limits[1], offset))
   }
 
   private initPositions(): void {
@@ -416,11 +390,19 @@ export struct ChainLyricsViewV2 {
 
     const oldHeight = this.itemHeights[index] ?? 0
     if (Math.abs(oldHeight - height) > 0.5) {
-      this.itemHeights = this.itemHeights.map((h, i) => i === index ? height : h)
+      this.itemHeights[index] = height
       if (index === this.displayLyricsIndex || index === this.prevHighlightIndex) {
         return
       }
-      this.itemYPositions = this.calculateItemYPositions(this.displayLyricsIndex)
+      // 同一批 onAreaChange 只安排一次位置重算，避免初始化时 n 次全量重算
+      if (!this.heightRecalcScheduled) {
+        this.heightRecalcScheduled = true
+        setTimeout(() => {
+          this.heightRecalcScheduled = false
+          if (this.isManualScroll) return
+          this.itemYPositions = this.calculateItemYPositions(this.displayLyricsIndex)
+        }, 0) as number
+      }
     }
   }
 
@@ -522,12 +504,12 @@ export struct ChainLyricsViewV2 {
 
   private setItemYPosition(index: number, y: number): void {
     if (this.isManualScroll) return
-    this.itemYPositions = this.itemYPositions.map((item, i) => i === index ? y : item)
+    this.itemYPositions[index] = y
   }
 
   private setItemExtraOffset(index: number, offset: number): void {
     if (this.isManualScroll) return
-    this.itemExtraOffset = this.itemExtraOffset.map((item, i) => i === index ? offset : item)
+    this.itemExtraOffset[index] = offset
   }
 
   private updateHighlightFromPosition(): void {
@@ -536,30 +518,7 @@ export struct ChainLyricsViewV2 {
     }
     this.lastHighlightOffset = this.manualOffset
 
-    let left = 0
-    let right = this.lyrics.length - 1
-
-    while (left < right) {
-      const mid = Math.floor((left + right) / 2)
-      const midY = (this.itemYPositions[mid] ?? 0) + this.manualOffset
-
-      if (midY < this.getTargetY()) {
-        left = mid + 1
-      } else {
-        right = mid
-      }
-    }
-
-    const leftY = (this.itemYPositions[left] ?? 0) + this.manualOffset
-    const leftDist = Math.abs(leftY - this.getTargetY())
-
-    if (left > 0) {
-      const prevY = (this.itemYPositions[left - 1] ?? 0) + this.manualOffset
-      const prevDist = Math.abs(prevY - this.getTargetY())
-      if (prevDist < leftDist) {
-        left = left - 1
-      }
-    }
+    const left = findNearestHighlightIndex(this.itemYPositions, this.manualOffset, this.getTargetY())
 
     if (left !== this.displayLyricsIndex) {
       this.displayLyricsIndex = left
@@ -659,7 +618,8 @@ export struct ChainLyricsViewV2 {
                 playingIndex: this.currentIndex,
                 theme: this.theme,
                 enableWordByWord: this.config.enableWordByWord,
-                currentLineElapsed: this.currentLineElapsed
+                // 逐字进度只传给播放行：非播放行不消费该值，传恒定 0 避免每 8ms 全量子组件刷新
+                currentLineElapsed: index === this.currentIndex ? this.currentLineElapsed : 0
               })
             }
             .width('100%')

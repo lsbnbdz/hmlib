@@ -16,20 +16,22 @@ import {
   LyricEventCallbacks
 } from '../types';
 import { LyricItem } from './LyricItem';
+import {
+  generateLyricKey,
+  calculateLyricsItemYPositions,
+  calculateManualOffsetLimits,
+  findNearestHighlightIndex
+} from '../utils/LyricsCalcUtils';
 
 /** 逐字计时器间隔（毫秒） */
 const WORD_TIMER_INTERVAL = 8;
 
-/** 生成歌词行的唯一 key（前2字+后2字+索引） */
-const generateLyricKey = (text: string, index: number): string => {
-  const len = text.length;
-  if (len <= 4) {
-    return `${text}_${index}`;
-  }
-  const prefix = text.slice(0, 2);
-  const suffix = text.slice(-2);
-  return `${prefix}${suffix}_${index}`;
-};
+/**
+ * 默认值常量（模块级缓存，热路径零分配）
+ * 注意：作为兜底值只读使用；调用方传入的 config 始终优先
+ */
+const DEFAULT_SPRING_CONST = getDefaultSpringParams();
+const DEFAULT_CONFIG_CONST = getDefaultConfigValues();
 
 @Component
 export struct ChainLyricsView {
@@ -109,13 +111,15 @@ export struct ChainLyricsView {
   private wordTimerId: number = -1
   /** 上次 tick 时间 */
   private lastTickTime: number = 0
+  /** 是否已安排高度变化后的位置重算（同一批 onAreaChange 去抖） */
+  private heightRecalcScheduled: boolean = false
 
   // ==================== 生命周期 ====================
   aboutToAppear() {
     this.displayLyricsIndex = this.currentIndex
     // 合并弹簧参数（使用默认值函数）
     const customParams = this.config.springParams
-    const defaultSpring = getDefaultSpringParams()
+    const defaultSpring = DEFAULT_SPRING_CONST
     this.springParams = {
       velocity: customParams?.velocity ?? defaultSpring.velocity,
       mass: customParams?.mass ?? defaultSpring.mass,
@@ -142,7 +146,7 @@ export struct ChainLyricsView {
 
     // 合并弹簧参数（使用默认值函数）
     const customParams = this.config.springParams
-    const defaultSpring = getDefaultSpringParams()
+    const defaultSpring = DEFAULT_SPRING_CONST
     this.springParams = {
       velocity: customParams?.velocity ?? defaultSpring.velocity,
       mass: customParams?.mass ?? defaultSpring.mass,
@@ -323,37 +327,37 @@ export struct ChainLyricsView {
   // ==================== 内部方法 ====================
   /** 获取高亮位置比例 */
   private getHighlightPositionRatio(): number {
-    return this.config.highlightPositionRatio ?? getDefaultConfigValues().highlightPositionRatio as number
+    return this.config.highlightPositionRatio ?? DEFAULT_CONFIG_CONST.highlightPositionRatio as number
   }
 
   /** 获取链式动画拖拽偏移量 */
   private getDragOffset(): number {
-    return this.config.dragOffset ?? getDefaultConfigValues().dragOffset as number
+    return this.config.dragOffset ?? DEFAULT_CONFIG_CONST.dragOffset as number
   }
 
   /** 获取链式动画范围 */
   private getChainAnimationRange(): number {
-    return this.config.chainAnimationRange ?? getDefaultConfigValues().chainAnimationRange as number
+    return this.config.chainAnimationRange ?? DEFAULT_CONFIG_CONST.chainAnimationRange as number
   }
 
   /** 获取拖拽持续时间 */
   private getDragHoldDuration(): number {
-    return this.config.dragHoldDuration ?? getDefaultConfigValues().dragHoldDuration as number
+    return this.config.dragHoldDuration ?? DEFAULT_CONFIG_CONST.dragHoldDuration as number
   }
 
   /** 获取手动滚动恢复时间 */
   private getManualScrollRecoveryTime(): number {
-    return this.config.manualScrollRecoveryTime ?? getDefaultConfigValues().manualScrollRecoveryTime as number
+    return this.config.manualScrollRecoveryTime ?? DEFAULT_CONFIG_CONST.manualScrollRecoveryTime as number
   }
 
   /** 获取默认行高 */
   private getDefaultLineHeight(): number {
-    return this.config.defaultLineHeight ?? getDefaultConfigValues().defaultLineHeight as number
+    return this.config.defaultLineHeight ?? DEFAULT_CONFIG_CONST.defaultLineHeight as number
   }
 
   /** 获取带翻译的行高 */
   private getLineHeightWithTranslation(): number {
-    return this.config.lineHeightWithTranslation ?? getDefaultConfigValues().lineHeightWithTranslation as number
+    return this.config.lineHeightWithTranslation ?? DEFAULT_CONFIG_CONST.lineHeightWithTranslation as number
   }
 
   /** 获取高亮位置 Y 坐标 */
@@ -376,34 +380,13 @@ export struct ChainLyricsView {
 
   /** 更新缓存的动画曲线 */
   private updateCachedAnimationCurve() {
-    const defaultSpring = getDefaultSpringParams()
+    const defaultSpring = DEFAULT_SPRING_CONST
     this.cachedAnimationCurve = curves.springCurve(
       this.springParams.velocity ?? defaultSpring.velocity,
       this.springParams.mass ?? defaultSpring.mass,
       this.springParams.stiffness ?? defaultSpring.stiffness,
       this.springParams.damping ?? defaultSpring.damping
     )
-  }
-
-  /** 计算某行的中心 Y 位置（考虑高亮行的额外间距） */
-  private getItemCenterY(index: number, highlightIndex: number): number {
-    const defaultSpring = getDefaultSpringParams()
-    const lineSpacing = this.springParams.lineSpacing ?? defaultSpring.lineSpacing as number
-    const highlightLineSpacing = this.springParams.highlightLineSpacing ?? defaultSpring.highlightLineSpacing as number
-    let y = 0
-    for (let i = 0; i < index; i++) {
-      y += (this.itemHeights[i] ?? this.getDefaultLineHeight()) + lineSpacing
-      // 如果下一行是高亮行，添加额外间距（高亮行上方的间距）
-      if (i + 1 === highlightIndex) {
-        y += highlightLineSpacing
-      }
-      // 如果当前行是高亮行，添加额外间距（高亮行下方的间距）
-      if (i === highlightIndex) {
-        y += highlightLineSpacing
-      }
-    }
-    const currentHeight = this.itemHeights[index] ?? this.getDefaultLineHeight()
-    return y + currentHeight / 2
   }
 
   /** 获取某行显示位置的 Y 坐标 */
@@ -413,32 +396,26 @@ export struct ChainLyricsView {
     return centerY - height / 2
   }
 
-  /** 计算目标行居中时每行的位置 */
+  /** 计算目标行居中时每行的位置（公共工具，O(n)） */
   private calculateItemYPositions(targetIndex: number): number[] {
-    const positions: number[] = []
-    const highlightCenterY = this.getItemCenterY(targetIndex, targetIndex)
-
-    for (let i = 0; i < this.lyrics.length; i++) {
-      const itemCenterY = this.getItemCenterY(i, targetIndex)
-      positions[i] = this.getTargetY() + (itemCenterY - highlightCenterY)
-    }
-    return positions
+    const defaultSpring = DEFAULT_SPRING_CONST
+    return calculateLyricsItemYPositions(
+      this.itemHeights,
+      targetIndex,
+      this.getTargetY(),
+      this.springParams.lineSpacing ?? defaultSpring.lineSpacing as number,
+      this.springParams.highlightLineSpacing ?? defaultSpring.highlightLineSpacing as number,
+      this.getDefaultLineHeight()
+    )
   }
 
   /** 获取限位后的手动偏移 */
   private getClampedManualOffset(offset: number): number {
-    if (this.lyrics.length === 0) return 0
-
-    const firstY = this.itemYPositions[0] ?? 0
-    const lastY = this.itemYPositions[this.lyrics.length - 1] ?? 0
-
-    const pullDownLimit = this.getTargetY() - firstY
-    const pushUpLimit = this.getTargetY() - lastY
-
-    const lower = Math.min(pullDownLimit, pushUpLimit)
-    const upper = Math.max(pullDownLimit, pushUpLimit)
-
-    return Math.max(lower, Math.min(upper, offset))
+    const limits = calculateManualOffsetLimits(this.itemYPositions, this.getTargetY())
+    if (limits === null) {
+      return 0
+    }
+    return Math.max(limits[0], Math.min(limits[1], offset))
   }
 
   /** 初始化位置 */
@@ -467,12 +444,20 @@ export struct ChainLyricsView {
 
     const oldHeight = this.itemHeights[index] ?? 0
     if (Math.abs(oldHeight - height) > 0.5) {
-      this.itemHeights = this.itemHeights.map((h, i) => i === index ? height : h)
+      this.itemHeights[index] = height
       // 高亮状态变化导致的高度变化（scale 变化），不影响其他行位置，跳过重新计算
       if (index === this.displayLyricsIndex || index === this.prevHighlightIndex) {
         return
       }
-      this.itemYPositions = this.calculateItemYPositions(this.displayLyricsIndex)
+      // 同一批 onAreaChange 只安排一次位置重算，避免初始化时 n 次全量重算
+      if (!this.heightRecalcScheduled) {
+        this.heightRecalcScheduled = true
+        setTimeout(() => {
+          this.heightRecalcScheduled = false
+          if (this.isManualScroll) return
+          this.itemYPositions = this.calculateItemYPositions(this.displayLyricsIndex)
+        }, 0) as number
+      }
     }
   }
 
@@ -576,7 +561,7 @@ export struct ChainLyricsView {
     let completedCount = 0
     const dragHoldDuration = this.getDragHoldDuration()
 
-    const defaultSpring = getDefaultSpringParams()
+    const defaultSpring = DEFAULT_SPRING_CONST
     for (let i = minAnimIndex; i <= maxAnimIndex; i++) {
       const delay = (i - minAnimIndex) * (this.springParams.dragDelay ?? defaultSpring.dragDelay as number)
       const dragOffset = (direction === 1 ? -1 : 1) * this.getDragOffset()
@@ -618,46 +603,23 @@ export struct ChainLyricsView {
   /** 设置单行 Y 位置 */
   private setItemYPosition(index: number, y: number) {
     if (this.isManualScroll) return
-    this.itemYPositions = this.itemYPositions.map((item, i) => i === index ? y : item)
+    this.itemYPositions[index] = y
   }
 
   /** 设置单行额外偏移 */
   private setItemExtraOffset(index: number, offset: number) {
     if (this.isManualScroll) return
-    this.itemExtraOffset = this.itemExtraOffset.map((item, i) => i === index ? offset : item)
+    this.itemExtraOffset[index] = offset
   }
 
-  /** 更新高亮索引（二分查找） */
+  /** 更新高亮索引（二分查找，公共工具） */
   private updateHighlightFromPosition() {
     if (Math.abs(this.manualOffset - this.lastHighlightOffset) < this.getDefaultLineHeight() / 2) {
       return
     }
     this.lastHighlightOffset = this.manualOffset
 
-    let left = 0
-    let right = this.lyrics.length - 1
-
-    while (left < right) {
-      const mid = Math.floor((left + right) / 2)
-      const midY = (this.itemYPositions[mid] ?? 0) + this.manualOffset
-
-      if (midY < this.getTargetY()) {
-        left = mid + 1
-      } else {
-        right = mid
-      }
-    }
-
-    const leftY = (this.itemYPositions[left] ?? 0) + this.manualOffset
-    const leftDist = Math.abs(leftY - this.getTargetY())
-
-    if (left > 0) {
-      const prevY = (this.itemYPositions[left - 1] ?? 0) + this.manualOffset
-      const prevDist = Math.abs(prevY - this.getTargetY())
-      if (prevDist < leftDist) {
-        left = left - 1
-      }
-    }
+    const left = findNearestHighlightIndex(this.itemYPositions, this.manualOffset, this.getTargetY())
 
     if (left !== this.displayLyricsIndex) {
       this.displayLyricsIndex = left
@@ -763,7 +725,8 @@ export struct ChainLyricsView {
                 playingIndex: this.currentIndex,
                 theme: this.theme,
                 enableWordByWord: this.isEnableWordByWord(),
-                currentLineElapsed: this.currentLineElapsed
+                // 逐字进度只传给播放行：非播放行不消费该值，传恒定 0 避免每 8ms 全量子组件刷新
+                currentLineElapsed: index === this.currentIndex ? this.currentLineElapsed : 0
               })
             }
             .width('100%')
