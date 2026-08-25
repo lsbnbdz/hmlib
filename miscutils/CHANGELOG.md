@@ -5,6 +5,18 @@
 本文件格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 并遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.1.1] - 2026-08-25
+
+### 优化
+
+- **完善包信息（oh-package.json5）**
+  - 新增 `keywords` 字段（`歌词`、`lyric`），便于 OHPM 检索
+  - `repository` 链接指向 miscutils 模块目录，直达库源码
+
+### 兼容性
+
+- 仅包描述信息变更，代码与对外 API 零改动
+
 ## [1.1.0] - 2026-08-24
 
 ### 优化

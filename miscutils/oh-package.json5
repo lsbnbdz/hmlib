@@ -1,14 +1,15 @@
 {
   "name": "@ospark/misc-utils",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A Disorganized Tools Repository.",
   "main": "Index.ets",
   "author": {
     "name": "lsbnbdz",
     "email": "13263325202@163.com",
   },
+  "keywords": ['歌词','lyric'],
   "homepage": "https://www.ospark.tech/",
-  "repository": "https://github.com/lsbnbdz/hmlib/",
+  "repository": "https://github.com/lsbnbdz/hmlib/tree/master/miscutils",
   "license": "Apache-2.0",
   "dependencies": {}
 }
